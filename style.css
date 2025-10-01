@@ -1,0 +1,58 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #e6f7ff;
+}
+
+.contenedor {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.izquierda {
+  flex: 1;
+  background: #9fe0f6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.izquierda img {
+  max-width: 80%;
+}
+
+.derecha {
+  flex: 1;
+  background: #fff;
+  border: 2px solid #b3ecff;
+  padding: 30px;
+  text-align: center;
+}
+
+.logo {
+  width: 80px;
+  margin-bottom: 15px;
+}
+
+input {
+  display: block;
+  margin: 15px auto;
+  padding: 10px;
+  width: 80%;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button {
+  padding: 10px 20px;
+  background: #66d9ff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+button:hover {
+  background: #33ccff;
+}
