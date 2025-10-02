@@ -1,22 +1,383 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>Registro</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tenshi — Registro de horas</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="contenedor">
-    <div class="izquierda">
-      <img src="https://undraw.co/api/illustrations/651ba9d0-0cf4-47b2-85a0-d2db3bf09e39" alt="Ilustración computadora">
-    </div>
-    <div class="derecha">
-      <img src="https://static.thenounproject.com/png/485120-200.png" class="logo" alt="Logo ala">
-      <h1>REGÍSTRATE</h1>
-      <p>INGRESAR NOMBRE</p>
-      <input type="text" placeholder="Tu nombre aquí">
-      <button>CONTINUAR</button>
-    </div>
-  </div>
+  <main class="container" role="main">
+    <!-- Area de login -->
+    <section id="loginSection" class="card center">
+      <h1 class="brand">Tenshi</h1>
+      <p class="muted">Registro de horas de prácticas — Soporte técnico y Papelería Tenshi</p>
+
+      <div class="form-row">
+        <label for="username">Nombre</label>
+        <input id="username" type="text" placeholder="Escribe tu nombre" />
+      </div>
+
+      <div class="form-row inline">
+        <button id="btnLogin" class="btn primary">Entrar</button>
+        <button id="btnContinueAsGuest" class="btn ghost">Entrar como invitado</button>
+      </div>
+    </section>
+
+    <!-- Area principal (oculto hasta login) -->
+    <section id="appSection" class="hidden">
+      <header class="topbar">
+        <div>
+          <strong id="greeting">Hola</strong>
+          <span id="userName" class="muted small"></span>
+        </div>
+        <div class="top-actions">
+          <button id="btnLogout" class="btn ghost">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <div class="grid">
+        <!-- formulario de registro de horas -->
+        <aside class="card form-card">
+          <h2>Agregar registro</h2>
+
+          <div class="form-row">
+            <label for="date">Fecha</label>
+            <input id="date" type="date" />
+          </div>
+
+          <div class="form-row">
+            <label for="area">Área de práctica</label>
+            <select id="area">
+              <option value="Soporte técnico">Soporte técnico</option>
+              <option value="Papelería Tenshi">Papelería Tenshi</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label for="hours">Horas (decimal permitido)</label>
+            <input id="hours" type="number" min="0" step="0.25" placeholder="Ej. 2.5" />
+          </div>
+
+          <div class="form-row inline">
+            <button id="btnAdd" class="btn primary">Agregar</button>
+            <button id="btnClearForm" class="btn ghost">Limpiar</button>
+          </div>
+
+          <p class="hint">Los registros se guardan en tu navegador (localStorage). No se eliminan al recargar la página.</p>
+        </aside>
+
+        <!-- lista de registros -->
+        <section class="card list-card">
+          <h2>Registros</h2>
+          <div id="summary" class="summary">
+            <!-- Totales por día se muestran aquí -->
+          </div>
+
+          <div id="entriesList" class="entries">
+            <!-- Entradas agrupadas por fecha aparecerán aquí -->
+          </div>
+
+          <div class="form-row inline end">
+            <button id="btnExport" class="btn ghost">Exportar JSON</button>
+            <button id="btnImport" class="btn ghost">Importar JSON</button>
+            <input id="importInput" type="file" accept=".json" class="hidden" />
+          </div>
+
+        </section>
+      </div>
+    </section>
+
+    <footer class="footer muted small center">
+      Hecho para Tenshi · Interfaz local (sin servidor) · Usa <strong>Agregar</strong> para sumar horas por día.
+    </footer>
+  </main>
+
+  <script>
+    /***************
+     * Helpers & State
+     ***************/
+    const loginSection = document.getElementById('loginSection');
+    const appSection = document.getElementById('appSection');
+    const usernameInput = document.getElementById('username');
+    const btnLogin = document.getElementById('btnLogin');
+    const btnContinueAsGuest = document.getElementById('btnContinueAsGuest');
+    const btnLogout = document.getElementById('btnLogout');
+    const userNameEl = document.getElementById('userName');
+    const greetingEl = document.getElementById('greeting');
+
+    const dateInput = document.getElementById('date');
+    const areaInput = document.getElementById('area');
+    const hoursInput = document.getElementById('hours');
+    const btnAdd = document.getElementById('btnAdd');
+    const btnClearForm = document.getElementById('btnClearForm');
+
+    const entriesList = document.getElementById('entriesList');
+    const summaryEl = document.getElementById('summary');
+
+    const btnExport = document.getElementById('btnExport');
+    const btnImport = document.getElementById('btnImport');
+    const importInput = document.getElementById('importInput');
+
+    // Estado en memoria
+    let currentUser = null; // string
+    // key function for localStorage per user
+    const storageKey = (user) => `tenshi_entries_${user || 'guest'}`;
+
+    // Utilidades
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+    function saveEntries(user, entries) {
+      localStorage.setItem(storageKey(user), JSON.stringify(entries));
+    }
+    function loadEntries(user) {
+      try {
+        const raw = localStorage.getItem(storageKey(user));
+        return raw ? JSON.parse(raw) : [];
+      } catch(e) {
+        return [];
+      }
+    }
+
+    /***************
+     * Login / Session
+     ***************/
+    function showAppFor(user) {
+      currentUser = user || 'guest';
+      loginSection.classList.add('hidden');
+      appSection.classList.remove('hidden');
+      userNameEl.textContent = currentUser === 'guest' ? '(Invitado)' : currentUser;
+      greetingEl.textContent = currentUser === 'guest' ? 'Hola' : `Hola,`;
+      // set default date to today
+      dateInput.value = new Date().toLocaleDateString('sv-SE'); // yyyy-mm-dd
+      renderEntries();
+    }
+
+    function showLogin() {
+      currentUser = null;
+      loginSection.classList.remove('hidden');
+      appSection.classList.add('hidden');
+      usernameInput.value = '';
+    }
+
+    btnLogin.addEventListener('click', () => {
+      const name = usernameInput.value.trim();
+      if (!name) { alert('Escribe tu nombre para continuar.'); return; }
+      showAppFor(name);
+    });
+
+    btnContinueAsGuest.addEventListener('click', () => {
+      showAppFor('guest');
+    });
+
+    btnLogout.addEventListener('click', () => {
+      if (confirm('¿Cerrar sesión?')) showLogin();
+    });
+
+    /***************
+     * Registro de horas
+     ***************/
+    function validateForm(date, area, hours) {
+      if (!date) { alert('Elige una fecha.'); return false; }
+      if (!area) { alert('Selecciona un área.'); return false; }
+      if (!(hours > 0)) { alert('Ingresa horas mayores a 0.'); return false; }
+      return true;
+    }
+
+    btnAdd.addEventListener('click', () => {
+      const date = dateInput.value;
+      const area = areaInput.value;
+      const hours = parseFloat(hoursInput.value);
+
+      if (!validateForm(date, area, hours)) return;
+
+      const entries = loadEntries(currentUser);
+      const entry = {
+        id: uid(),
+        date,               // "YYYY-MM-DD"
+        area,
+        hours: Number(Math.round(hours * 100) / 100), // almacenar hasta 2 decimales
+        createdAt: new Date().toISOString()
+      };
+      entries.push(entry);
+      saveEntries(currentUser, entries);
+
+      // limpiar form
+      hoursInput.value = '';
+      // actualizar vista
+      renderEntries();
+    });
+
+    btnClearForm.addEventListener('click', () => {
+      dateInput.value = new Date().toLocaleDateString('sv-SE');
+      areaInput.selectedIndex = 0;
+      hoursInput.value = '';
+    });
+
+    /***************
+     * Renderizado
+     ***************/
+    function groupByDate(entries) {
+      // devuelve objeto { '2025-09-30': [entry, ...], ... }
+      return entries.reduce((acc, e) => {
+        (acc[e.date] = acc[e.date] || []).push(e);
+        return acc;
+      }, {});
+    }
+
+    function renderEntries() {
+      const entries = loadEntries(currentUser).slice().sort((a,b) => {
+        if (a.date === b.date) return b.createdAt.localeCompare(a.createdAt);
+        return b.date.localeCompare(a.date);
+      });
+
+      // resumen por día (total de horas)
+      const grouped = groupByDate(entries);
+      summaryEl.innerHTML = '';
+      if (entries.length === 0) {
+        summaryEl.innerHTML = '<p class="muted">No hay registros aún. Agrega horas para comenzar.</p>';
+      } else {
+        // Totales generales
+        const totalAll = entries.reduce((s,e) => s + Number(e.hours), 0);
+        const totalBlock = document.createElement('div');
+        totalBlock.className = 'totals';
+        totalBlock.innerHTML = `<div><strong>Total acumulado:</strong> ${totalAll.toFixed(2)} h</div>`;
+        summaryEl.appendChild(totalBlock);
+      }
+
+      // lista de entradas agrupadas por fecha
+      entriesList.innerHTML = '';
+      const dates = Object.keys(grouped).sort((a,b) => b.localeCompare(a)); // desc
+
+      dates.forEach(date => {
+        const entriesForDate = grouped[date];
+        const dayTotal = entriesForDate.reduce((s,e) => s + Number(e.hours), 0);
+
+        const dayBlock = document.createElement('div');
+        dayBlock.className = 'day-block';
+
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'day-header';
+        const formatted = new Date(date + 'T00:00:00').toLocaleDateString();
+        dayHeader.innerHTML = `<div><strong>${formatted}</strong></div><div class="muted">Total: ${dayTotal.toFixed(2)} h</div>`;
+
+        dayBlock.appendChild(dayHeader);
+
+        // entries
+        entriesForDate.sort((a,b) => b.createdAt.localeCompare(a.createdAt)).forEach(e => {
+          const row = document.createElement('div');
+          row.className = 'entry-row';
+
+          // left: area + hours
+          const left = document.createElement('div');
+          left.className = 'entry-main';
+          left.innerHTML = `<div class="entry-area">${escapeHtml(e.area)}</div><div class="entry-hours">${Number(e.hours).toFixed(2)} h</div>`;
+
+          // right: delete
+          const right = document.createElement('div');
+          right.className = 'entry-actions';
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn small danger';
+          delBtn.textContent = 'Eliminar';
+          delBtn.onclick = () => {
+            if (confirm('¿Eliminar este registro?')) {
+              deleteEntry(e.id);
+            }
+          };
+          right.appendChild(delBtn);
+
+          row.appendChild(left);
+          row.appendChild(right);
+
+          dayBlock.appendChild(row);
+        });
+
+        entriesList.appendChild(dayBlock);
+      });
+    }
+
+    function deleteEntry(id) {
+      const entries = loadEntries(currentUser).filter(e => e.id !== id);
+      saveEntries(currentUser, entries);
+      renderEntries();
+    }
+
+    // small html escape
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    /***************
+     * Export / Import JSON (opcional)
+     ***************/
+    btnExport.addEventListener('click', () => {
+      const entries = loadEntries(currentUser);
+      const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tenshi_${currentUser || 'guest'}_entries.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    btnImport.addEventListener('click', () => importInput.click());
+    importInput.addEventListener('change', (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!Array.isArray(data)) throw new Error('Formato inválido');
+          // opcional: preguntar para añadir o reemplazar
+          if (confirm('¿Agregar los registros importados a los existentes? Pulsa "Cancelar" para reemplazarlos.')) {
+            const existing = loadEntries(currentUser);
+            const merged = existing.concat(data.map(d => ({ ...d, id: d.id || uid() })));
+            saveEntries(currentUser, merged);
+          } else {
+            // reemplazar (asegurar ids)
+            const sanitized = data.map(d => ({ ...d, id: d.id || uid() }));
+            saveEntries(currentUser, sanitized);
+          }
+          renderEntries();
+          alert('Importación completada.');
+        } catch (err) {
+          alert('No se pudo importar: archivo inválido.');
+        }
+      };
+      reader.readAsText(file);
+      importInput.value = '';
+    });
+
+    /***************
+     * Inicialización: carga sesión si existe
+     ***************/
+    (function init() {
+      // si había un "session_user" guardada, iniciar automáticamente
+      const sessionUser = localStorage.getItem('tenshi_session_user');
+      if (sessionUser) {
+        // restaurar sesión
+        showAppFor(sessionUser);
+      } else {
+        showLogin();
+      }
+
+      // Guardar sesión al entrar
+      btnLogin.addEventListener('click', () => {
+        if (usernameInput.value.trim()) {
+          localStorage.setItem('tenshi_session_user', usernameInput.value.trim());
+        }
+      });
+      btnContinueAsGuest.addEventListener('click', () => {
+        localStorage.setItem('tenshi_session_user', 'guest');
+      });
+      btnLogout.addEventListener('click', () => {
+        localStorage.removeItem('tenshi_session_user');
+      });
+    })();
+  </script>
 </body>
 </html>
